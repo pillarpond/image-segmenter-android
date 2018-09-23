@@ -166,8 +166,8 @@ public class Deeplab {
         }
 
         // Copy the input data into TensorFlow.
-        inferenceInterface.feed(INPUT_NODE, byteValues, 1, bitmap.getWidth(),
-                bitmap.getHeight(), 3);
+        inferenceInterface.feed(
+                INPUT_NODE, byteValues, 1, bitmap.getHeight(), bitmap.getWidth(), 3);
 
         inferenceInterface.run(new String[]{OUTPUT_NODE});
         inferenceInterface.fetch(OUTPUT_NODE, outputValues);
