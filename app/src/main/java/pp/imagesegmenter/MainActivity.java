@@ -78,16 +78,6 @@ public class MainActivity extends CameraActivity implements OnImageAvailableList
 
     private boolean initialized = false;
 
-    /*
-    @Override
-    protected void onCreate(final Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-
-        FrameLayout container = findViewById(R.id.container);
-        initSnackbar = Snackbar.make(container, "Initializing...", Snackbar.LENGTH_INDEFINITE);
-    }
-    */
-
     @Override
     public void onPreviewSizeChosen(final Size size, final int rotation) {
         sensorOrientation = rotation - getScreenOrientation();
