@@ -1,6 +1,6 @@
 # Realtime Image Segmenter
 
-[![Build Status](https://travis-ci.org/pillarpond/imagesegmenter.svg?branch=master)](https://travis-ci.org/pillarpond/imagesegmenter)
+[![Build Status](https://travis-ci.org/pillarpond/image-segmenter-android.svg?branch=master)](https://travis-ci.org/pillarpond/image-segmenter-android)
 
 This sample demonstrates realtime image segmentation on Android. The project is based on the [Deeplab](http://liangchiehchen.com/projects/DeepLab.html)
 
