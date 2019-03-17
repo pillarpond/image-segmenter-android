@@ -15,6 +15,7 @@ limitations under the License.
 
 package pp.imagesegmenter;
 
+import android.content.res.AssetFileDescriptor;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -22,10 +23,14 @@ import android.graphics.Matrix;
 import android.graphics.Point;
 import android.graphics.RectF;
 
-import org.tensorflow.Graph;
-import org.tensorflow.Operation;
-import org.tensorflow.contrib.android.TensorFlowInferenceInterface;
+import org.tensorflow.lite.Interpreter;
+import org.tensorflow.lite.experimental.GpuDelegate;
 
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.channels.FileChannel;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Stack;
@@ -80,9 +85,12 @@ public class Deeplab {
         }
     }
 
-    private static final String MODEL_FILE = "file:///android_asset/frozen_inference_graph.pb";
-    private static final String INPUT_NODE = "ImageTensor";
-    private static final String OUTPUT_NODE = "SemanticPredictions";
+    private static final String MODEL_FILE = "deeplabv3_257_mv_gpu.tflite";
+    // Float model
+    private static final float IMAGE_MEAN = 128.0f;
+    private static final float IMAGE_STD = 128.0f;
+    private static final int BYTE_SIZE_OF_FLOAT = 4;
+
     private static final int[] colormap = {
             0x00000000,     //background
             0x99ffe119,     //aeroplane
@@ -112,80 +120,106 @@ public class Deeplab {
     private int height;
 
     private int[] intValues;
-    private byte[] byteValues;
+    private ByteBuffer imgData;
+    private ByteBuffer outputBuffer;
     private int[] outputValues;
-    private TensorFlowInferenceInterface inferenceInterface;
 
     private Stack<Point> pointStack;
     private Stack<Point> maskStack;
 
-    Deeplab(AssetManager assetManager,
+    private Interpreter tfLite;
+
+    /** Memory-map the model file in Assets. */
+    private static ByteBuffer loadModelFile(AssetManager assets)
+            throws IOException {
+        AssetFileDescriptor fileDescriptor = assets.openFd(MODEL_FILE);
+        FileInputStream inputStream = new FileInputStream(fileDescriptor.getFileDescriptor());
+        FileChannel fileChannel = inputStream.getChannel();
+        long startOffset = fileDescriptor.getStartOffset();
+        long declaredLength = fileDescriptor.getDeclaredLength();
+        return fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength);
+    }
+
+    /** Initializes a native TensorFlow session. */
+    public static Deeplab create(
+            AssetManager assetManager,
             int inputWidth,
             int inputHeight,
             int sensorOrientation) {
-        inferenceInterface = new TensorFlowInferenceInterface(assetManager, MODEL_FILE);
+        final Deeplab d = new Deeplab();
 
-        final Graph g = inferenceInterface.graph();
-
-        // The inputName node has a shape of [N, H, W, C], where
-        // N is the batch size
-        // H = W are the height and width
-        // C is the number of channels (3 for our purposes - RGB)
-        final Operation
-                inputOp1 = g.operation(INPUT_NODE);
-        if (inputOp1 == null) {
-            throw new RuntimeException("Failed to find input Node '" + INPUT_NODE + "'");
+        try {
+            GpuDelegate delegate = new GpuDelegate();
+            Interpreter.Options options = (new Interpreter.Options()).addDelegate(delegate);
+            d.tfLite = new Interpreter(loadModelFile(assetManager), options);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
 
-        final Operation outputOp1 = g.operation(OUTPUT_NODE);
-        if (outputOp1 == null) {
-            throw new RuntimeException("Failed to find output Node'" + OUTPUT_NODE + "'");
-        }
-
-        this.sensorOrientation = sensorOrientation;
-        width = inputWidth;
-        height = inputHeight;
+        d.sensorOrientation = sensorOrientation;
+        d.width = inputWidth;
+        d.height = inputHeight;
 
         // Pre-allocate buffers.
-        intValues = new int[inputWidth * inputHeight];
-        byteValues = new byte[inputWidth * inputHeight * 3];
-        outputValues = new int[inputWidth * inputHeight];
+        d.intValues = new int[inputWidth * inputHeight];
+        d.imgData = ByteBuffer.allocateDirect(inputWidth * inputHeight * 3 * BYTE_SIZE_OF_FLOAT);
+        d.imgData.order(ByteOrder.nativeOrder());
+        d.outputValues = new int[inputWidth * inputHeight];
+        d.outputBuffer = ByteBuffer.allocateDirect(inputWidth * inputHeight * 21 * BYTE_SIZE_OF_FLOAT);
+        d.outputBuffer.order(ByteOrder.nativeOrder());
 
-        pointStack = new Stack<>();
-        maskStack = new Stack<>();
+        d.pointStack = new Stack<>();
+        d.maskStack = new Stack<>();
+        return d;
     }
+
+
+    private Deeplab() {}
 
     List<Recognition> segment(Bitmap bitmap, Matrix matrix) {
         bitmap.getPixels(intValues, 0, bitmap.getWidth(), 0, 0, bitmap.getWidth(), bitmap.getHeight());
 
-        for (int i = 0; i < intValues.length; ++i) {
-            final int val = intValues[i];
-            byteValues[i * 3] = (byte) ((val >> 16) & 0xFF);
-            byteValues[i * 3 + 1] = (byte) ((val >> 8) & 0xFF);
-            byteValues[i * 3 + 2] = (byte) (val & 0xFF);
+        imgData.rewind();
+        outputBuffer.rewind();
+        for (final int val : intValues) {
+            imgData.putFloat((((val >> 16) & 0xFF) - IMAGE_MEAN) / IMAGE_STD);
+            imgData.putFloat((((val >> 8) & 0xFF) - IMAGE_MEAN) / IMAGE_STD);
+            imgData.putFloat(((val & 0xFF) - IMAGE_MEAN) / IMAGE_STD);
         }
 
         // Copy the input data into TensorFlow.
-        inferenceInterface.feed(
-                INPUT_NODE, byteValues, 1, bitmap.getHeight(), bitmap.getWidth(), 3);
-
-        inferenceInterface.run(new String[]{OUTPUT_NODE});
-        inferenceInterface.fetch(OUTPUT_NODE, outputValues);
+        tfLite.run(imgData, outputBuffer);
 
         final List<Recognition> mappedRecognitions = new LinkedList<>();
+
+        outputBuffer.flip();
+        for (int col = 0; col < height; col++) {
+            for (int row = 0; row < width; row++) {
+                int id = 0;
+                float max = outputBuffer.getFloat();
+
+                for(int cls = 1; cls < 21; cls++) {
+                    float val = outputBuffer.getFloat();
+                    if (val > max) {
+                        id = cls;
+                        max = val;
+                    }
+                }
+                outputValues[col * width + row] = id;
+            }
+        }
 
         int cnt = 0;
         for (int col = 0; col < height; col++) {
             for (int row = 0; row < width; row++) {
-                if (outputValues[col * width + row] == 0) continue;
+                int id = outputValues[col * width + row];
+                if (id == 0) continue;
 
                 RectF rectF = new RectF();
                 rectF.top = col;
                 rectF.bottom = col + 1;
                 rectF.left = row;
                 rectF.right = row + 1;
-
-                int id = outputValues[col * width + row];
 
                 floodFill(row, col, id, rectF);
 
@@ -198,7 +232,6 @@ public class Deeplab {
         }
 
         return mappedRecognitions;
-
     }
 
     private Bitmap createMask(int id, Matrix matrix, RectF rectF) {
@@ -266,9 +299,5 @@ public class Deeplab {
                 pointStack.push(new Point(row, col + 1));
             }
         }
-    }
-
-    String getStatString() {
-        return inferenceInterface.getStatString();
     }
 }

@@ -32,7 +32,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Trace;
-import android.support.v7.app.AppCompatActivity;
 import android.util.Size;
 import android.view.KeyEvent;
 import android.view.Surface;
@@ -40,6 +39,8 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.Toast;
 import java.nio.ByteBuffer;
+
+import androidx.appcompat.app.AppCompatActivity;
 import pp.imagesegmenter.env.ImageUtils;
 import pp.imagesegmenter.env.Logger;
 

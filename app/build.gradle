@@ -1,11 +1,11 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 27
+    compileSdkVersion 28
     defaultConfig {
         applicationId "pp.imagesegmenter"
         minSdkVersion 25
-        targetSdkVersion 27
+        targetSdkVersion 28
         versionCode 1
         versionName "1.0"
     }
@@ -20,6 +20,9 @@ android {
             path 'src/main/jni/CMakeLists.txt'
         }
     }
+    aaptOptions {
+        noCompress "tflite"
+    }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
@@ -27,8 +30,8 @@ android {
 }
 
 dependencies {
-    implementation 'com.android.support:appcompat-v7:27.1.1'
-    implementation 'com.android.support:design:27.1.1'
-    implementation 'com.android.support:support-annotations:27.1.1'
-    implementation 'org.tensorflow:tensorflow-android:1.10.0'
+    implementation 'androidx.annotation:annotation:1.0.2'
+    implementation 'androidx.appcompat:appcompat:1.0.2'
+    implementation 'com.google.android.material:material:1.1.0-alpha04'
+    implementation 'org.tensorflow:tensorflow-lite:0.0.0-gpu-experimental'
 }

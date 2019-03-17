@@ -16,5 +16,8 @@ The project is heavily inspired by
 ## Screenshots
 ![demo](./demo.gif)
 
+## Pre-trained model
+[DeepLab segmentation](https://ai.googleblog.com/2018/03/semantic-image-segmentation-with.html) (257x257) [&#91;download&#93;](https://storage.googleapis.com/download.tensorflow.org/models/tflite/gpu/deeplabv3_257_mv_gpu.tflite)
+
 ## License
 [Apache License 2.0](./LICENSE)

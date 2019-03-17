@@ -25,10 +25,12 @@ import android.graphics.Paint;
 import android.graphics.Typeface;
 import android.media.ImageReader.OnImageAvailableListener;
 import android.os.SystemClock;
-import android.support.design.widget.Snackbar;
+import android.util.Log;
 import android.util.Size;
 import android.util.TypedValue;
 import android.widget.FrameLayout;
+
+import com.google.android.material.snackbar.Snackbar;
 
 import pp.imagesegmenter.env.BorderedText;
 import pp.imagesegmenter.env.ImageUtils;
@@ -45,7 +47,7 @@ import java.util.Vector;
 public class MainActivity extends CameraActivity implements OnImageAvailableListener {
     private static final Logger LOGGER = new Logger();
 
-    private static final int CROP_SIZE = 280;
+    private static final int CROP_SIZE = 257;
 
     private static final Size DESIRED_PREVIEW_SIZE = new Size(640, 480);
 
@@ -143,12 +145,6 @@ public class MainActivity extends CameraActivity implements OnImageAvailableList
                     canvas.drawBitmap(copy, matrix, new Paint());
 
                     final Vector<String> lines = new Vector<String>();
-                    if (deeplab != null) {
-                        final String statString = deeplab.getStatString();
-                        final String[] statLines = statString.split("\n");
-                        Collections.addAll(lines, statLines);
-                    }
-                    lines.add("");
                     lines.add("Frame: " + previewWidth + "x" + previewHeight);
                     lines.add("Crop: " + copy.getWidth() + "x" + copy.getHeight());
                     lines.add("View: " + canvas.getWidth() + "x" + canvas.getHeight());
@@ -165,9 +161,10 @@ public class MainActivity extends CameraActivity implements OnImageAvailableList
         runOnUiThread(()->initSnackbar.show());
 
         try {
-            deeplab = new Deeplab(getAssets(), CROP_SIZE, CROP_SIZE, sensorOrientation);
+            deeplab = Deeplab.create(getAssets(), CROP_SIZE, CROP_SIZE, sensorOrientation);
         } catch (Exception e) {
             LOGGER.e("Exception initializing classifier!", e);
+            Log.e("zoo",e.toString(),e);
             finish();
         }
 
