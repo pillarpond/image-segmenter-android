@@ -88,7 +88,7 @@ public class MainActivity extends CameraActivity implements OnImageAvailableList
         FrameLayout container = findViewById(R.id.container);
         initSnackbar = Snackbar.make(container, "Initializing...", Snackbar.LENGTH_INDEFINITE);
 
-        new Thread(this::init).start();
+        init();
 
         final float textSizePx =
         TypedValue.applyDimension(
@@ -158,18 +158,17 @@ public class MainActivity extends CameraActivity implements OnImageAvailableList
     OverlayView trackingOverlay;
 
     void init() {
-        runOnUiThread(()->initSnackbar.show());
-
-        try {
-            deeplab = Deeplab.create(getAssets(), CROP_SIZE, CROP_SIZE, sensorOrientation);
-        } catch (Exception e) {
-            LOGGER.e("Exception initializing classifier!", e);
-            Log.e("zoo",e.toString(),e);
-            finish();
-        }
-
-        runOnUiThread(()->initSnackbar.dismiss());
-        initialized = true;
+        runInBackground(() -> {
+            runOnUiThread(()->initSnackbar.show());
+            try {
+                deeplab = Deeplab.create(getAssets(), CROP_SIZE, CROP_SIZE, sensorOrientation);
+            } catch (Exception e) {
+                LOGGER.e("Exception initializing classifier!", e);
+                finish();
+            }
+            runOnUiThread(()->initSnackbar.dismiss());
+            initialized = true;
+        });
     }
 
     @Override
